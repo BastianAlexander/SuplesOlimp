@@ -1,0 +1,8 @@
+CREATE DATABASE IF NOT EXISTS bd_auth_service;
+CREATE DATABASE IF NOT EXISTS bd_perfil_service;
+CREATE DATABASE IF NOT EXISTS bd_producto_service;
+CREATE DATABASE IF NOT EXISTS bd_inventario_service;
+CREATE DATABASE IF NOT EXISTS bd_carrito_service;
+CREATE DATABASE IF NOT EXISTS bd_orden_service;
+CREATE DATABASE IF NOT EXISTS bd_pago_service;
+CREATE DATABASE IF NOT EXISTS bd_resena_service;
