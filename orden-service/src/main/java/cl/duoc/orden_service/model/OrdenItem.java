@@ -1,5 +1,6 @@
 package cl.duoc.orden_service.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,6 +19,7 @@ public class OrdenItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @JsonBackReference
     @ManyToOne
     @JoinColumn(name = "orden_id", nullable = false)
     private Orden orden;
@@ -29,5 +31,8 @@ public class OrdenItem {
     private Integer cantidad;
 
     @Column(nullable = false)
-    private BigDecimal precio;
+    private BigDecimal precioUnitario;
+
+    @Column(nullable = false)
+    private BigDecimal subtotal;
 }

@@ -68,7 +68,8 @@ public class OrdenService {
                     .orden(orden)
                     .productoId(itemCarrito.getProductoId())
                     .cantidad(itemCarrito.getCantidad())
-                    .precio(producto.getPrecio())
+                    .precioUnitario(producto.getPrecio())
+                    .subtotal(subtotal)
                     .build();
 
             ordenItems.add(ordenItem);

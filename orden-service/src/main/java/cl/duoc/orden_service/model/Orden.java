@@ -1,5 +1,6 @@
 package cl.duoc.orden_service.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,6 +33,7 @@ public class Orden {
     @Column(nullable = false)
     private LocalDateTime fecha;
 
+    @JsonManagedReference
     @OneToMany(mappedBy = "orden", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrdenItem> items;
 }

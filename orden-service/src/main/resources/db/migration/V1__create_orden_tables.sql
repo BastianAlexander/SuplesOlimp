@@ -11,7 +11,8 @@ CREATE TABLE orden_items (
                              orden_id BIGINT NOT NULL,
                              producto_id BIGINT NOT NULL,
                              cantidad INT NOT NULL,
-                             precio DECIMAL(10,2) NOT NULL,
+                             precio_unitario DECIMAL(10,2) NOT NULL,
+                             subtotal DECIMAL(10,2) NOT NULL,
                              CONSTRAINT fk_orden_items_orden
                                  FOREIGN KEY (orden_id) REFERENCES ordenes(id)
 );
