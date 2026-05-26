@@ -1,109 +1,181 @@
 package cl.duoc.orden_service.service;
 
-import cl.duoc.orden_service.client.CarritoClient;
-import cl.duoc.orden_service.client.InventarioClient;
-import cl.duoc.orden_service.client.PerfilClient;
-import cl.duoc.orden_service.client.ProductoClient;
-import cl.duoc.orden_service.dto.CarritoItemResponse;
-import cl.duoc.orden_service.dto.CrearOrdenRequest;
-import cl.duoc.orden_service.dto.DescontarStockRequest;
-import cl.duoc.orden_service.dto.ProductoResponse;
+import cl.duoc.orden_service.clients.CarritoFeign;
+import cl.duoc.orden_service.clients.CarritoItemFeign;
+import cl.duoc.orden_service.clients.InventarioFeign;
+import cl.duoc.orden_service.dto.*;
+import cl.duoc.orden_service.exception.OrdenNoExiste;
+import cl.duoc.orden_service.exception.OrdenNoPuedeCrearse;
+import cl.duoc.orden_service.exception.StockInsuficiente;
+import cl.duoc.orden_service.mapper.OrdenItemMapper;
+import cl.duoc.orden_service.mapper.OrdenMapper;
 import cl.duoc.orden_service.model.Orden;
 import cl.duoc.orden_service.model.OrdenItem;
+import cl.duoc.orden_service.repository.OrdenItemRepository;
 import cl.duoc.orden_service.repository.OrdenRepository;
-import lombok.RequiredArgsConstructor;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class OrdenService {
 
-    private final OrdenRepository ordenRepository;
-    private final PerfilClient perfilClient;
-    private final CarritoClient carritoClient;
-    private final ProductoClient productoClient;
-    private final InventarioClient inventarioClient;
+    @Autowired
+    private OrdenRepository ordenRepository;
 
-    public Orden crearOrden(CrearOrdenRequest request) {
+    @Autowired
+    private OrdenItemRepository ordenItemRepository;
 
-        perfilClient.buscarPerfilPorId(request.getPerfilId());
+    @Autowired
+    private OrdenMapper ordenMapper;
 
-        List<CarritoItemResponse> carritoItems = carritoClient.listarPorPerfil(request.getPerfilId());
+    @Autowired
+    private OrdenItemMapper ordenItemMapper;
 
-        if (carritoItems.isEmpty()) {
-            throw new RuntimeException("El carrito está vacío");
+    @Autowired
+    private CarritoFeign carritoFeign;
+
+    @Autowired
+    private CarritoItemFeign carritoItemFeign;
+
+    @Autowired
+    private InventarioFeign inventarioFeign;
+
+    public List<OrdenDTO> findAll() {
+        return ordenRepository.findAll()
+                .stream()
+                .map(this::convertirADTO)
+                .collect(Collectors.toList());
+    }
+
+    public OrdenDTO findById(Long id) {
+        Orden orden = ordenRepository.findById(id).orElse(null);
+
+        if (orden == null) {
+            throw new OrdenNoExiste("No existe orden con ID: " + id);
         }
 
-        BigDecimal total = BigDecimal.ZERO;
-        List<OrdenItem> ordenItems = new ArrayList<>();
+        return convertirADTO(orden);
+    }
 
-        Orden orden = Orden.builder()
-                .perfilId(request.getPerfilId())
-                .estado("PENDIENTE")
-                .fecha(LocalDateTime.now())
-                .total(BigDecimal.ZERO)
-                .items(ordenItems)
-                .build();
+    public void delete(Long id) {
+        Orden orden = ordenRepository.findById(id).orElse(null);
 
-        for (CarritoItemResponse itemCarrito : carritoItems) {
-
-            ProductoResponse producto = productoClient.buscarProductoPorId(itemCarrito.getProductoId());
-
-            BigDecimal subtotal = producto.getPrecio()
-                    .multiply(BigDecimal.valueOf(itemCarrito.getCantidad()));
-
-            total = total.add(subtotal);
-
-            inventarioClient.descontarStock(
-                    itemCarrito.getProductoId(),
-                    new DescontarStockRequest(itemCarrito.getCantidad())
-            );
-
-            OrdenItem ordenItem = OrdenItem.builder()
-                    .orden(orden)
-                    .productoId(itemCarrito.getProductoId())
-                    .cantidad(itemCarrito.getCantidad())
-                    .precioUnitario(producto.getPrecio())
-                    .subtotal(subtotal)
-                    .build();
-
-            ordenItems.add(ordenItem);
+        if (orden == null) {
+            throw new OrdenNoExiste("No existe orden con ID: " + id);
         }
 
+        ordenRepository.deleteById(id);
+    }
+
+    @Transactional
+    public OrdenDTO crearDesdeCarrito(Long carritoId) {
+
+        if (ordenRepository.existsByCarritoId(carritoId)) {
+            throw new OrdenNoPuedeCrearse("Este carrito ya generó una orden anteriormente");
+        }
+
+        CarritoDTO carritoDTO = carritoFeign.buscarCarritoPorId(carritoId);
+
+        if (carritoDTO == null) {
+            throw new OrdenNoPuedeCrearse("No se pudo encontrar el carrito con ID: " + carritoId);
+        }
+
+        if (carritoDTO.getItems() == null || carritoDTO.getItems().isEmpty()) {
+            throw new OrdenNoPuedeCrearse("No se puede crear una orden con un carrito vacío");
+        }
+
+        Integer total = 0;
+
+        for (CarritoItemDTO item : carritoDTO.getItems()) {
+            ProductoDTO producto = item.getProducto();
+
+            InventarioDTO inventario = inventarioFeign.buscarPorProductoId(producto.getId());
+
+            if (inventario.getStock() < item.getCantidad()) {
+                throw new StockInsuficiente("No hay stock suficiente para el producto: " + producto.getNombre());
+            }
+
+            Integer subtotal = producto.getPrecio() * item.getCantidad();
+            total += subtotal;
+        }
+
+        Orden orden = new Orden();
+        orden.setClienteId(carritoDTO.getCliente().getId());
+        orden.setCarritoId(carritoDTO.getId());
         orden.setTotal(total);
+        orden.setEstado("CREADA");
+        orden.setFechaCreacion(LocalDateTime.now());
 
         Orden ordenGuardada = ordenRepository.save(orden);
 
-        carritoClient.vaciarCarrito(request.getPerfilId());
+        for (CarritoItemDTO item : carritoDTO.getItems()) {
+            ProductoDTO producto = item.getProducto();
 
-        return ordenGuardada;
+            OrdenItem ordenItem = new OrdenItem();
+            ordenItem.setOrdenId(ordenGuardada.getId());
+            ordenItem.setProductoId(producto.getId());
+            ordenItem.setCantidad(item.getCantidad());
+            ordenItem.setPrecioUnitario(producto.getPrecio());
+            ordenItem.setSubtotal(producto.getPrecio() * item.getCantidad());
+
+            ordenItemRepository.save(ordenItem);
+
+            InventarioDTO inventario = inventarioFeign.buscarPorProductoId(producto.getId());
+            inventarioFeign.disminuirStock(inventario.getId(), item.getCantidad());
+        }
+
+        carritoItemFeign.vaciarCarrito(carritoDTO.getId());
+
+        return convertirADTO(ordenGuardada);
     }
 
-    public List<Orden> listar() {
-        return ordenRepository.findAll();
+    public List<OrdenDTO> buscarPorCliente(Long clienteId) {
+        return ordenRepository.findByClienteId(clienteId)
+                .stream()
+                .map(this::convertirADTO)
+                .collect(Collectors.toList());
     }
 
-    public Orden buscarPorId(Long id) {
-        return ordenRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Orden no encontrada"));
+    public List<OrdenDTO> buscarPorEstado(String estado) {
+        return ordenRepository.findByEstadoIgnoreCase(estado)
+                .stream()
+                .map(this::convertirADTO)
+                .collect(Collectors.toList());
     }
 
-    public List<Orden> listarPorPerfil(Long perfilId) {
-        return ordenRepository.findByPerfilId(perfilId);
-    }
+    public OrdenDTO cambiarEstado(Long id, String estado) {
+        Orden orden = ordenRepository.findById(id).orElse(null);
 
-    public Orden actualizarEstado(Long id, String estado) {
-        Orden orden = buscarPorId(id);
+        if (orden == null) {
+            throw new OrdenNoExiste("No existe orden con ID: " + id);
+        }
+
         orden.setEstado(estado);
-        return ordenRepository.save(orden);
+
+        Orden ordenActualizada = ordenRepository.save(orden);
+
+        return convertirADTO(ordenActualizada);
     }
 
-    public List<Orden> listarPorEstado(String estado) {
-        return ordenRepository.findByEstadoIgnoreCase(estado);
+    private OrdenDTO convertirADTO(Orden orden) {
+        CarritoDTO carritoDTO = carritoFeign.buscarCarritoPorId(orden.getCarritoId());
+
+        List<OrdenItem> items = ordenItemRepository.findByOrdenId(orden.getId());
+
+        List<OrdenItemDTO> itemsDTO = items.stream()
+                .map(item -> {
+                    InventarioDTO inventarioDTO = inventarioFeign.buscarPorProductoId(item.getProductoId());
+                    ProductoDTO productoDTO = inventarioDTO.getProducto();
+
+                    return ordenItemMapper.toDTO(item, productoDTO);
+                })
+                .collect(Collectors.toList());
+
+        return ordenMapper.toDTO(orden, carritoDTO.getCliente(), itemsDTO);
     }
 }

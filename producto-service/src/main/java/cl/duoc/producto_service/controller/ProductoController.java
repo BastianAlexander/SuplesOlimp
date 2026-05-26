@@ -1,68 +1,68 @@
 package cl.duoc.producto_service.controller;
 
-import cl.duoc.producto_service.dto.ActualizarProductoRequest;
-import cl.duoc.producto_service.dto.CrearProductoRequest;
+import cl.duoc.producto_service.dto.ProductoDTO;
 import cl.duoc.producto_service.model.Producto;
+import cl.duoc.producto_service.service.CategoriaService;
 import cl.duoc.producto_service.service.ProductoService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.util.List;
-
 @RestController
-@RequestMapping("/productos")
-@RequiredArgsConstructor
+@RequestMapping("api/v1/productos")
 public class ProductoController {
 
-    private final ProductoService productoService;
+    @Autowired
+    private ProductoService productoService;
 
-    @PostMapping
-    public ResponseEntity<Producto> crear(@Valid @RequestBody CrearProductoRequest request) {
-        return ResponseEntity.ok(productoService.crear(request));
-    }
+    @Autowired
+    private CategoriaService categoriaService;
 
     @GetMapping
-    public ResponseEntity<List<Producto>> listar() {
-        return ResponseEntity.ok(productoService.listar());
+    public ResponseEntity<?> listar() {
+        return ResponseEntity.ok(productoService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Producto> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(productoService.buscarPorId(id));
+    public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
+        ProductoDTO producto = productoService.findById(id);
+        if (producto == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(producto);
     }
 
-    @GetMapping("/buscar/nombre")
-    public ResponseEntity<List<Producto>> buscarPorNombre(@RequestParam String nombre) {
-        return ResponseEntity.ok(productoService.buscarPorNombre(nombre));
-    }
-
-    @GetMapping("/buscar/marca")
-    public ResponseEntity<List<Producto>> buscarPorMarca(@RequestParam String marca) {
-        return ResponseEntity.ok(productoService.buscarPorMarca(marca));
+    @PostMapping
+    public ResponseEntity<?> registrar(@Valid @RequestBody ProductoDTO productoDTO) {
+        ProductoDTO productoNuevo = productoService.save(productoDTO);
+        return new ResponseEntity<>(productoNuevo, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Producto> actualizar(
-            @PathVariable Long id,
-            @Valid @RequestBody ActualizarProductoRequest request
-    ) {
-        return ResponseEntity.ok(productoService.actualizar(id, request));
+    public ResponseEntity<?> actualizar(@PathVariable Long id, @Valid @RequestBody ProductoDTO productoDTO) {
+        ProductoDTO productoActualizado = productoService.update(id, productoDTO);
+        return ResponseEntity.ok(productoActualizado);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> eliminar(@PathVariable Long id) {
-        productoService.eliminar(id);
-        return ResponseEntity.ok("Producto eliminado correctamente");
+    public ResponseEntity<?> borrar(@PathVariable Long id) {
+        productoService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/rango-precio")
-    public ResponseEntity<List<Producto>> buscarPorRangoPrecio(
-            @RequestParam BigDecimal min,
-            @RequestParam BigDecimal max
-    ) {
-        return ResponseEntity.ok(productoService.buscarPorRangoPrecio(min, max));
+    //Endpoints Extrass
+    @GetMapping("/buscar/{nombre}")
+    public ResponseEntity<?> buscarPorNombre(@PathVariable String nombre) {
+        return ResponseEntity.ok(productoService.buscarPorNombre(nombre));
+    }
+
+    @GetMapping("/categoria/{idCategoria}")
+    public ResponseEntity<?> buscarPorCategoria(@PathVariable Long idCategoria) {
+        return ResponseEntity.ok(productoService.buscarPorCategoria(idCategoria));
+    }
+
+    @GetMapping("/precio/{precioMin}/{precioMax}")
+    public ResponseEntity<?> buscarPorRangoPrecio(@PathVariable Integer precioMin, @PathVariable Integer precioMax) {
+        return ResponseEntity.ok(productoService.buscarPorRangoPrecio(precioMin, precioMax));
     }
 }

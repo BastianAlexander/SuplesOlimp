@@ -1,86 +1,136 @@
 package cl.duoc.inventario_service.service;
 
-import cl.duoc.inventario_service.client.ProductoClient;
-import cl.duoc.inventario_service.dto.ActualizarStockRequest;
-import cl.duoc.inventario_service.dto.CrearInventarioRequest;
-import cl.duoc.inventario_service.dto.DescontarStockRequest;
+import cl.duoc.inventario_service.clients.ProductoFeign;
+import cl.duoc.inventario_service.dto.InventarioDTO;
+import cl.duoc.inventario_service.dto.ProductoDTO;
+import cl.duoc.inventario_service.exception.InventarioNoExiste;
+import cl.duoc.inventario_service.mapper.InventarioMapper;
 import cl.duoc.inventario_service.model.Inventario;
 import cl.duoc.inventario_service.repository.InventarioRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class InventarioService {
 
-    private final InventarioRepository inventarioRepository;
-    private final ProductoClient productoClient;
+    @Autowired
+    private InventarioRepository inventarioRepository;
 
-    public Inventario crear(CrearInventarioRequest request) {
+    @Autowired
+    private InventarioMapper inventarioMapper;
 
-        productoClient.buscarProductoPorId(request.getProductoId());
+    @Autowired
+    private ProductoFeign productoFeign;
 
-        if (inventarioRepository.existsByProductoId(request.getProductoId())) {
-            throw new RuntimeException("Este producto ya tiene inventario");
+    public List<InventarioDTO> findAll() {
+        List<Inventario> inventarios = inventarioRepository.findAll();
+
+        return inventarios.stream()
+                .map(inventario -> {
+                    ProductoDTO productoDTO = productoFeign.buscarProductoPorId(inventario.getProductoId());
+                    return inventarioMapper.toDTO(inventario, productoDTO);
+                })
+                .collect(Collectors.toList());
+    }
+
+    public InventarioDTO findById(Long id) {
+        Inventario inventario = inventarioRepository.findById(id).orElse(null);
+
+        if (inventario == null) {
+            throw new InventarioNoExiste("No existe inventario con ID: " + id);
         }
 
-        Inventario inventario = Inventario.builder()
-                .productoId(request.getProductoId())
-                .stock(request.getStock())
-                .activo(true)
-                .build();
+        ProductoDTO productoDTO = productoFeign.buscarProductoPorId(inventario.getProductoId());
 
-        return inventarioRepository.save(inventario);
+        return inventarioMapper.toDTO(inventario, productoDTO);
     }
 
-    public List<Inventario> listar() {
-        return inventarioRepository.findByActivoTrue();
+    public InventarioDTO save(Inventario inventario) {
+        ProductoDTO productoDTO = productoFeign.buscarProductoPorId(inventario.getProductoId());
+
+        Inventario inventarioGuardado = inventarioRepository.save(inventario);
+
+        return inventarioMapper.toDTO(inventarioGuardado, productoDTO);
     }
 
-    public Inventario buscarPorId(Long id) {
-        return inventarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Inventario no encontrado"));
-    }
+    public InventarioDTO update(Long id, Inventario inventario) {
+        Inventario inventarioActualizar = inventarioRepository.findById(id).orElse(null);
 
-    public Inventario buscarPorProductoId(Long productoId) {
-        return inventarioRepository.findByProductoId(productoId)
-                .orElseThrow(() -> new RuntimeException("Inventario no encontrado para este producto"));
-    }
-
-    public Inventario actualizarStock(Long productoId, ActualizarStockRequest request) {
-
-        Inventario inventario = buscarPorProductoId(productoId);
-
-        inventario.setStock(request.getStock());
-
-        return inventarioRepository.save(inventario);
-    }
-
-    public Inventario descontarStock(Long productoId, DescontarStockRequest request) {
-
-        Inventario inventario = buscarPorProductoId(productoId);
-
-        if (inventario.getStock() < request.getCantidad()) {
-            throw new RuntimeException("Stock insuficiente");
+        if (inventarioActualizar == null) {
+            throw new InventarioNoExiste("No existe inventario con ID: " + id);
         }
 
-        inventario.setStock(inventario.getStock() - request.getCantidad());
+        ProductoDTO productoDTO = productoFeign.buscarProductoPorId(inventario.getProductoId());
 
-        return inventarioRepository.save(inventario);
+        inventarioActualizar.setProductoId(inventario.getProductoId());
+        inventarioActualizar.setStock(inventario.getStock());
+
+        Inventario inventarioActualizado = inventarioRepository.save(inventarioActualizar);
+
+        return inventarioMapper.toDTO(inventarioActualizado, productoDTO);
     }
 
-    public void eliminar(Long id) {
+    public void delete(Long id) {
+        Inventario inventario = inventarioRepository.findById(id).orElse(null);
 
-        Inventario inventario = buscarPorId(id);
+        if (inventario == null) {
+            throw new InventarioNoExiste("No existe inventario con ID: " + id);
+        }
 
-        inventario.setActivo(false);
-
-        inventarioRepository.save(inventario);
+        inventarioRepository.deleteById(id);
     }
 
-    public List<Inventario> listarBajoStock(Integer minimo) {
-        return inventarioRepository.findByStockLessThanEqualAndActivoTrue(minimo);
+
+    //Metodos extrass aparte del crud
+
+    public InventarioDTO buscarPorProductoId(Long productoId) {
+        Inventario inventario = inventarioRepository.findByProductoId(productoId);
+
+        if (inventario == null) {
+            throw new InventarioNoExiste("No existe inventario para el producto con ID: " + productoId);
+        }
+
+        ProductoDTO productoDTO = productoFeign.buscarProductoPorId(inventario.getProductoId());
+
+        return inventarioMapper.toDTO(inventario, productoDTO);
+    }
+
+    public InventarioDTO aumentarStock(Long id, Integer cantidad) {
+        Inventario inventario = inventarioRepository.findById(id).orElse(null);
+
+        if (inventario == null) {
+            throw new InventarioNoExiste("No existe inventario con ID: " + id);
+        }
+
+        inventario.setStock(inventario.getStock() + cantidad);
+
+        Inventario inventarioActualizado = inventarioRepository.save(inventario);
+
+        ProductoDTO productoDTO = productoFeign.buscarProductoPorId(inventarioActualizado.getProductoId());
+
+        return inventarioMapper.toDTO(inventarioActualizado, productoDTO);
+    }
+
+    public InventarioDTO disminuirStock(Long id, Integer cantidad) {
+        Inventario inventario = inventarioRepository.findById(id).orElse(null);
+
+        if (inventario == null) {
+            throw new InventarioNoExiste("No existe inventario con ID: " + id);
+        }
+
+        if (inventario.getStock() - cantidad < 0) {
+            throw new RuntimeException("No hay stock suficiente");
+        }
+
+        inventario.setStock(inventario.getStock() - cantidad);
+
+        Inventario inventarioActualizado = inventarioRepository.save(inventario);
+
+        ProductoDTO productoDTO = productoFeign.buscarProductoPorId(inventarioActualizado.getProductoId());
+
+        return inventarioMapper.toDTO(inventarioActualizado, productoDTO);
     }
 }

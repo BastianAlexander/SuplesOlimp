@@ -1,73 +1,92 @@
 package cl.duoc.producto_service.service;
 
-import cl.duoc.producto_service.dto.ActualizarProductoRequest;
-import cl.duoc.producto_service.dto.CrearProductoRequest;
+import cl.duoc.producto_service.dto.ProductoDTO;
+import cl.duoc.producto_service.exception.ProductoNoExiste;
+import cl.duoc.producto_service.mapper.ProductoMapper;
+import cl.duoc.producto_service.model.Categoria;
 import cl.duoc.producto_service.model.Producto;
 import cl.duoc.producto_service.repository.ProductoRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class ProductoService {
 
-    private final ProductoRepository productoRepository;
+    @Autowired
+    private ProductoRepository productoRepository;
 
-    public Producto crear(CrearProductoRequest request) {
+    @Autowired
+    private ProductoMapper productoMapper;
 
-        Producto producto = Producto.builder()
-                .nombre(request.getNombre())
-                .descripcion(request.getDescripcion())
-                .marca(request.getMarca())
-                .precio(request.getPrecio())
-                .activo(true)
-                .build();
+    @Autowired
+    private CategoriaService categoriaService;
 
-        return productoRepository.save(producto);
+    public List<ProductoDTO> findAll() {
+        return productoMapper.toDTOList(productoRepository.findAll());
     }
 
-    public List<Producto> listar() {
-        return productoRepository.findByActivoTrue();
+    public ProductoDTO findById(Long id) {
+        Producto producto = productoRepository.findById(id).orElse(null);
+
+        if (producto == null) {
+            throw new ProductoNoExiste("No existe el producto con ID: " + id);
+        }
+
+        return productoMapper.toDTO(producto);
     }
 
-    public Producto buscarPorId(Long id) {
-        return productoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+    public ProductoDTO save(ProductoDTO productoDTO) {
+        Categoria categoria = categoriaService.findById(productoDTO.getIdCategoria());
+
+        Producto producto = new Producto();
+        producto.setNombre(productoDTO.getNombre());
+        producto.setPrecio(productoDTO.getPrecio());
+        producto.setDescripcion(productoDTO.getDescripcion());
+        producto.setCategoria(categoria);
+
+        Producto productoGuardado = productoRepository.save(producto);
+
+        return productoMapper.toDTO(productoGuardado);
     }
 
-    public List<Producto> buscarPorNombre(String nombre) {
-        return productoRepository.findByNombreContainingIgnoreCaseAndActivoTrue(nombre);
+    public ProductoDTO update(Long id, ProductoDTO productoDTO) {
+        Producto productoActualizar = productoRepository.findById(id).orElse(null);
+
+        if (productoActualizar == null) {
+            throw new ProductoNoExiste("No existe el producto con ID: " + id);
+        }
+
+        Categoria categoria = categoriaService.findById(productoDTO.getIdCategoria());
+
+        productoActualizar.setNombre(productoDTO.getNombre());
+        productoActualizar.setPrecio(productoDTO.getPrecio());
+        productoActualizar.setDescripcion(productoDTO.getDescripcion());
+        productoActualizar.setCategoria(categoria);
+
+        Producto productoActualizado = productoRepository.save(productoActualizar);
+
+        return productoMapper.toDTO(productoActualizado);
     }
 
-    public List<Producto> buscarPorMarca(String marca) {
-        return productoRepository.findByMarcaContainingIgnoreCaseAndActivoTrue(marca);
+
+    public void delete(Long id) {
+        productoRepository.deleteById(id);
     }
 
-    public Producto actualizar(Long id, ActualizarProductoRequest request) {
 
-        Producto producto = buscarPorId(id);
+    //Endpoints Extrasss
 
-        producto.setNombre(request.getNombre());
-        producto.setDescripcion(request.getDescripcion());
-        producto.setMarca(request.getMarca());
-        producto.setPrecio(request.getPrecio());
-
-        return productoRepository.save(producto);
+    public List<ProductoDTO> buscarPorNombre(String nombre) {
+        return productoMapper.toDTOList(productoRepository.findByNombreContainingIgnoreCase(nombre));
     }
 
-    public void eliminar(Long id) {
-
-        Producto producto = buscarPorId(id);
-
-        producto.setActivo(false);
-
-        productoRepository.save(producto);
+    public List<ProductoDTO> buscarPorCategoria(Long idCategoria) {
+        return productoMapper.toDTOList(productoRepository.findByCategoria_Id(idCategoria));
     }
 
-    public List<Producto> buscarPorRangoPrecio(BigDecimal min, BigDecimal max) {
-        return productoRepository.findByPrecioBetweenAndActivoTrue(min, max);
+    public List<ProductoDTO> buscarPorRangoPrecio(Integer precioMin, Integer precioMax) {
+        return productoMapper.toDTOList(productoRepository.findByPrecioBetween(precioMin, precioMax));
     }
 }

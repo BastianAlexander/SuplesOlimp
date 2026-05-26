@@ -1,6 +1,8 @@
 package cl.duoc.pago_service.exception;
 
 import cl.duoc.pago_service.exception.ErrorResponse;
+import cl.duoc.pago_service.exception.PagoNoExiste;
+import cl.duoc.pago_service.exception.PagoNoPuedeRealizarse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -8,36 +10,56 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponse> manejarRuntimeException(RuntimeException ex) {
-
-        ErrorResponse error = ErrorResponse.builder()
-                .mensaje(ex.getMessage())
-                .estado(HttpStatus.BAD_REQUEST.value())
-                .fecha(LocalDateTime.now())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> manejarValidaciones(MethodArgumentNotValidException ex) {
+    public ResponseEntity<?> errorValidacion(MethodArgumentNotValidException ex) {
+        List<String> errores = ex.getBindingResult().getFieldErrors()
+                .stream()
+                .map(error->error.getDefaultMessage())
+                .toList();
 
-        String mensaje = ex.getBindingResult()
-                .getFieldErrors()
-                .get(0)
-                .getDefaultMessage();
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Error en validaciones",
+                errores.toString(),
+                LocalDateTime.now()
+        );
 
-        ErrorResponse error = ErrorResponse.builder()
-                .mensaje(mensaje)
-                .estado(HttpStatus.BAD_REQUEST.value())
-                .fecha(LocalDateTime.now())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
+
+    @ExceptionHandler(PagoNoPuedeRealizarse.class)
+    public ResponseEntity<?> errorValidacion(PagoNoPuedeRealizarse ex) {
+
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Error en los Datos ",
+                ex.getMessage(),
+                LocalDateTime.now()
+        );
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(PagoNoExiste.class)
+    public ResponseEntity<?> errorValidacion(PagoNoExiste ex) {
+
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Error en los Datos ",
+                ex.getMessage(),
+                LocalDateTime.now()
+        );
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+
+
+
+
+
 }

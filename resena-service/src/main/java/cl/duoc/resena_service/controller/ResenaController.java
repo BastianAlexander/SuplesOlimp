@@ -1,64 +1,67 @@
 package cl.duoc.resena_service.controller;
 
-import cl.duoc.resena_service.dto.ActualizarResenaRequest;
-import cl.duoc.resena_service.dto.CrearResenaRequest;
+import cl.duoc.resena_service.dto.ResenaDTO;
 import cl.duoc.resena_service.model.Resena;
 import cl.duoc.resena_service.service.ResenaService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/resenas")
-@RequiredArgsConstructor
+@RequestMapping("api/v1/resenas")
 public class ResenaController {
 
-    private final ResenaService resenaService;
-
-    @PostMapping
-    public ResponseEntity<Resena> crear(@Valid @RequestBody CrearResenaRequest request) {
-        return ResponseEntity.ok(resenaService.crear(request));
-    }
+    @Autowired
+    private ResenaService resenaService;
 
     @GetMapping
-    public ResponseEntity<List<Resena>> listar() {
-        return ResponseEntity.ok(resenaService.listar());
+    public ResponseEntity<?> listar() {
+        return ResponseEntity.ok(resenaService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Resena> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(resenaService.buscarPorId(id));
+    public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
+        ResenaDTO resena = resenaService.findById(id);
+        return ResponseEntity.ok(resena);
     }
 
-    @GetMapping("/producto/{productoId}")
-    public ResponseEntity<List<Resena>> listarPorProducto(@PathVariable Long productoId) {
-        return ResponseEntity.ok(resenaService.listarPorProducto(productoId));
-    }
-
-    @GetMapping("/perfil/{perfilId}")
-    public ResponseEntity<List<Resena>> listarPorPerfil(@PathVariable Long perfilId) {
-        return ResponseEntity.ok(resenaService.listarPorPerfil(perfilId));
+    @PostMapping
+    public ResponseEntity<?> registrar(@Valid @RequestBody Resena resena) {
+        ResenaDTO resenaNueva = resenaService.save(resena);
+        return new ResponseEntity<>(resenaNueva, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Resena> actualizar(
-            @PathVariable Long id,
-            @Valid @RequestBody ActualizarResenaRequest request
-    ) {
-        return ResponseEntity.ok(resenaService.actualizar(id, request));
+    public ResponseEntity<?> actualizar(@PathVariable Long id, @Valid @RequestBody Resena resena) {
+        ResenaDTO resenaActualizada = resenaService.update(id, resena);
+        return ResponseEntity.ok(resenaActualizada);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> eliminar(@PathVariable Long id) {
-        resenaService.eliminar(id);
-        return ResponseEntity.ok("Reseña eliminada correctamente");
+    public ResponseEntity<?> borrar(@PathVariable Long id) {
+        resenaService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/producto/{productoId}")
+    public ResponseEntity<?> buscarPorProducto(@PathVariable Long productoId) {
+        return ResponseEntity.ok(resenaService.buscarPorProducto(productoId));
+    }
+
+    @GetMapping("/cliente/{clienteId}")
+    public ResponseEntity<?> buscarPorCliente(@PathVariable Long clienteId) {
+        return ResponseEntity.ok(resenaService.buscarPorCliente(clienteId));
+    }
+
+    @GetMapping("/calificacion/{calificacion}")
+    public ResponseEntity<?> buscarPorCalificacion(@PathVariable Integer calificacion) {
+        return ResponseEntity.ok(resenaService.buscarPorCalificacion(calificacion));
     }
 
     @GetMapping("/producto/{productoId}/promedio")
-    public ResponseEntity<Double> obtenerPromedioPorProducto(@PathVariable Long productoId) {
-        return ResponseEntity.ok(resenaService.obtenerPromedioPorProducto(productoId));
+    public ResponseEntity<?> promedioPorProducto(@PathVariable Long productoId) {
+        return ResponseEntity.ok(resenaService.promedioPorProducto(productoId));
     }
 }

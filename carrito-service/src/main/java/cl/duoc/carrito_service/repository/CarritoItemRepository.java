@@ -2,15 +2,18 @@ package cl.duoc.carrito_service.repository;
 
 import cl.duoc.carrito_service.model.CarritoItem;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Optional;
 
+@Repository
 public interface CarritoItemRepository extends JpaRepository<CarritoItem, Long> {
 
-    List<CarritoItem> findByPerfilIdAndActivoTrue(Long perfilId);
+    List<CarritoItem> findByCarritoId(Long carritoId);
 
-    Optional<CarritoItem> findByPerfilIdAndProductoIdAndActivoTrue(Long perfilId, Long productoId);
-
-    int countByPerfilIdAndActivoTrue(Long perfilId);
+    @Modifying
+    @Query("DELETE FROM CarritoItem ci WHERE ci.carritoId = :carritoId")
+    void eliminarItemsPorCarritoId(Long carritoId);
 }

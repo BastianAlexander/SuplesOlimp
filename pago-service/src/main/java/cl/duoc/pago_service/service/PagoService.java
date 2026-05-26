@@ -1,67 +1,109 @@
 package cl.duoc.pago_service.service;
 
-import cl.duoc.pago_service.client.OrdenClient;
-import cl.duoc.pago_service.dto.CrearPagoRequest;
-import cl.duoc.pago_service.dto.OrdenResponse;
+import cl.duoc.pago_service.clients.OrdenFeign;
+import cl.duoc.pago_service.dto.OrdenDTO;
+import cl.duoc.pago_service.dto.Pagar;
+import cl.duoc.pago_service.dto.PagoDTO;
+import cl.duoc.pago_service.exception.PagoNoExiste;
+import cl.duoc.pago_service.exception.PagoNoPuedeRealizarse;
+import cl.duoc.pago_service.mapper.PagoMapper;
 import cl.duoc.pago_service.model.Pago;
 import cl.duoc.pago_service.repository.PagoRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class PagoService {
 
-    private final PagoRepository pagoRepository;
-    private final OrdenClient ordenClient;
+    @Autowired
+    private PagoRepository pagoRepository;
 
-    public Pago crear(CrearPagoRequest request) {
+    @Autowired
+    private PagoMapper pagoMapper;
 
-        OrdenResponse orden = ordenClient.buscarOrdenPorId(request.getOrdenId());
+    @Autowired
+    private OrdenFeign ordenFeign;
 
-        if (pagoRepository.existsByOrdenId(request.getOrdenId())) {
-            throw new RuntimeException("Esta orden ya tiene un pago registrado");
+    public List<PagoDTO> findAll() {
+        return pagoRepository.findAll()
+                .stream()
+                .map(pagoMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public PagoDTO findById(Long id) {
+        Pago pago = pagoRepository.findById(id).orElse(null);
+
+        if (pago == null) {
+            throw new PagoNoExiste("No existe pago con ID: " + id);
         }
 
-        if (request.getMonto().compareTo(orden.getTotal()) != 0) {
-            throw new RuntimeException("El monto del pago no coincide con el total de la orden");
+        return pagoMapper.toDTO(pago);
+    }
+
+    public void delete(Long id) {
+        Pago pago = pagoRepository.findById(id).orElse(null);
+
+        if (pago == null) {
+            throw new PagoNoExiste("No existe pago con ID: " + id);
         }
 
-        Pago pago = Pago.builder()
-                .ordenId(request.getOrdenId())
-                .monto(request.getMonto())
-                .metodo(request.getMetodo())
-                .estado("PAGADO")
-                .build();
+        pagoRepository.deleteById(id);
+    }
+
+    public PagoDTO pagarOrden(Long ordenId, Pagar request) {
+        OrdenDTO ordenDTO = ordenFeign.buscarOrdenPorId(ordenId);
+
+        if (ordenDTO == null) {
+            throw new PagoNoPuedeRealizarse("No se encontró la orden con ID: " + ordenId);
+        }
+
+        if ("PAGADA".equalsIgnoreCase(ordenDTO.getEstado())) {
+            throw new PagoNoPuedeRealizarse("La orden ya está pagada");
+        }
+
+        if (!request.getMonto().equals(ordenDTO.getTotal())) {
+            throw new PagoNoPuedeRealizarse(
+                    "El monto ingresado no coincide con el total de la orden. Total esperado: " + ordenDTO.getTotal()
+            );
+        }
+
+        Pago pago = new Pago();
+        pago.setOrdenId(ordenDTO.getId());
+        pago.setMonto(request.getMonto());
+        pago.setMetodoPago(request.getMetodoPago());
+        pago.setEstado("APROBADO");
+        pago.setFechaPago(LocalDateTime.now());
 
         Pago pagoGuardado = pagoRepository.save(pago);
 
-        ordenClient.actualizarEstado(request.getOrdenId(), "PAGADA");
+        ordenFeign.cambiarEstado(ordenDTO.getId(), "PAGADA");
 
-        return pagoGuardado;
+        return pagoMapper.toDTO(pagoGuardado);
     }
 
-    public List<Pago> listar() {
-        return pagoRepository.findAll();
-    }
-
-    public Pago buscarPorId(Long id) {
-        return pagoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
-    }
-
-    public Pago buscarPorOrdenId(Long ordenId) {
+    public List<PagoDTO> buscarPorOrden(Long ordenId) {
         return pagoRepository.findByOrdenId(ordenId)
-                .orElseThrow(() -> new RuntimeException("Pago no encontrado para esta orden"));
+                .stream()
+                .map(pagoMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
-    public List<Pago> listarPorEstado(String estado) {
-        return pagoRepository.findByEstadoIgnoreCase(estado);
+    public List<PagoDTO> buscarPorEstado(String estado) {
+        return pagoRepository.findByEstadoIgnoreCase(estado)
+                .stream()
+                .map(pagoMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
-    public List<Pago> listarPorMetodo(String metodo) {
-        return pagoRepository.findByMetodoIgnoreCase(metodo);
+    public List<PagoDTO> buscarPorMetodoPago(String metodoPago) {
+        return pagoRepository.findByMetodoPagoIgnoreCase(metodoPago)
+                .stream()
+                .map(pagoMapper::toDTO)
+                .collect(Collectors.toList());
     }
 }

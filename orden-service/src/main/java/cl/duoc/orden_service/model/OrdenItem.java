@@ -1,38 +1,39 @@
 package cl.duoc.orden_service.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
-import lombok.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-
-@Entity
-@Table(name = "orden_items")
-@Getter
-@Setter
-@NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@NoArgsConstructor
+@Data
+@Entity
+@Table(name = "orden_item")
 public class OrdenItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @JsonBackReference
-    @ManyToOne
-    @JoinColumn(name = "orden_id", nullable = false)
-    private Orden orden;
+    @Column(name = "orden_id")
+    @NotNull(message = "El orden id no puede estar vacío")
+    private Long ordenId;
 
-    @Column(name = "producto_id", nullable = false)
+    @Column(name = "producto_id")
+    @NotNull(message = "El producto id no puede estar vacío")
     private Long productoId;
 
-    @Column(nullable = false)
+    @NotNull(message = "La cantidad no puede estar vacía")
+    @Min(value = 1, message = "La cantidad debe ser mayor o igual a 1")
     private Integer cantidad;
 
-    @Column(nullable = false)
-    private BigDecimal precioUnitario;
+    @Column(name = "precio_unitario")
+    @NotNull(message = "El precio unitario no puede estar vacío")
+    private Integer precioUnitario;
 
-    @Column(nullable = false)
-    private BigDecimal subtotal;
+    @NotNull(message = "El subtotal no puede estar vacío")
+    private Integer subtotal;
 }

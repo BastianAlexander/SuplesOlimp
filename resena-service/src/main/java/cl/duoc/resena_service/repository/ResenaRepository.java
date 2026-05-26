@@ -1,18 +1,17 @@
-    package cl.duoc.resena_service.repository;
+package cl.duoc.resena_service.repository;
 
-    import cl.duoc.resena_service.model.Resena;
-    import org.springframework.data.jpa.repository.JpaRepository;
+import cl.duoc.resena_service.model.Resena;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-    import java.util.List;
+import java.util.List;
 
-    public interface ResenaRepository extends JpaRepository<Resena, Long> {
+@Repository
+public interface ResenaRepository extends JpaRepository<Resena, Long> {
 
-        List<Resena> findByActivoTrue();
+    List<Resena> findByProductoId(Long productoId);
 
-        List<Resena> findByProductoIdAndActivoTrue(Long productoId);
+    List<Resena> findByClienteId(Long clienteId);
 
-        List<Resena> findByPerfilIdAndActivoTrue(Long perfilId);
-
-
-
-    }
+    List<Resena> findByCalificacion(Integer calificacion);
+}

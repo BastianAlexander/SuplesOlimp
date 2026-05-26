@@ -1,9 +1,8 @@
-CREATE TABLE resenas (
-                         id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                         perfil_id BIGINT NOT NULL,
-                         producto_id BIGINT NOT NULL,
-                         puntuacion INT NOT NULL,
-                         comentario VARCHAR(500),
-                         fecha DATETIME NOT NULL,
-                         activo BOOLEAN NOT NULL DEFAULT TRUE
+CREATE TABLE resena (
+                        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        producto_id BIGINT NOT NULL,
+                        cliente_id BIGINT NOT NULL,
+                        comentario VARCHAR(255) NOT NULL,
+                        calificacion INT NOT NULL,
+                        fecha_creacion DATETIME NOT NULL
 );

@@ -1,82 +1,95 @@
 package cl.duoc.auth_service.service;
-import cl.duoc.auth_service.dto.AuthResponse;
-import cl.duoc.auth_service.security.JwtService;
-import cl.duoc.auth_service.dto.LoginRequest;
-import cl.duoc.auth_service.dto.RegisterRequest;
-import cl.duoc.auth_service.model.Rol;
-import cl.duoc.auth_service.model.Usuario;
-import cl.duoc.auth_service.repository.RolRepository;
-import cl.duoc.auth_service.repository.UsuarioRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import cl.duoc.auth_service.dto.UsuarioResponse;
-import java.util.stream.Collectors;
 
-import java.util.Set;
+import cl.duoc.auth_service.dto.ActualizarAuthDto;
+import cl.duoc.auth_service.dto.AuthDto;
+import cl.duoc.auth_service.exception.ContrasenaCorreoIncorrecto;
+import cl.duoc.auth_service.exception.UsuarioNoExiste;
+import cl.duoc.auth_service.mapper.AuthMapper;
+import cl.duoc.auth_service.model.Auth;
+import cl.duoc.auth_service.repository.AuthRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
-    private final UsuarioRepository usuarioRepository;
-    private final RolRepository rolRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+    @Autowired
+    private AuthRepository authRepository;
 
-    public String register(RegisterRequest request) {
+    @Autowired
+    private AuthMapper authMapper;
 
-        if (usuarioRepository.existsByCorreo(request.getCorreo())) {
-            return "El correo ya está registrado";
+    public List<Auth> findAll(){
+        return authRepository.findAll();
+    }
+
+    public Auth findById(Long id){
+        return authRepository.findById(id).orElse(null);
+    }
+
+    public Auth save(Auth auth){
+        auth.setActivo(true);
+        auth.setFechaCreacion(LocalDateTime.now());
+        return authRepository.save(auth);
+    }
+    public Auth update(Long id, ActualizarAuthDto actualizarAuthDto){
+        Auth Authactualizar = authRepository.findById(id).orElse(null);
+        if (Authactualizar == null){
+            throw new UsuarioNoExiste("Usuario no existe!");
+        }
+        if (!Authactualizar.getPassword().equals(actualizarAuthDto.getContrasennaActual())) {
+            throw new ContrasenaCorreoIncorrecto("La contraseña actual es incorrecta");
+        }
+        Authactualizar.setCorreo(actualizarAuthDto.getCorreo());
+        Authactualizar.setPassword(actualizarAuthDto.getPassword());
+        return authRepository.save(Authactualizar);
+    }
+    public void delete(Long id){
+        authRepository.deleteById(id);
+    }
+
+    public AuthDto findDTO(Long id){
+        return authMapper.toDTO(findById(id));
+    }
+
+    public List<AuthDto> findDTOList(){
+        return authMapper.toDTOlist(findAll());
+    }
+
+    public AuthDto login(String correo, String password) {
+        Auth auth = authRepository.findByCorreo(correo);
+
+        if (auth == null){
+            throw new ContrasenaCorreoIncorrecto(" Error!! contraseña o correo incorrecto");
+        }
+        if (!auth.getPassword().equals(password)){
+            throw new ContrasenaCorreoIncorrecto(" Error!! contraseña o correo incorrecto");
         }
 
-        Rol rolCliente = rolRepository.findByNombre("CLIENTE")
-                .orElseThrow(() -> new RuntimeException("Rol CLIENTE no encontrado"));
-
-        Usuario usuario = Usuario.builder()
-                .correo(request.getCorreo())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .activo(true)
-                .roles(Set.of(rolCliente))
-                .build();
-
-        usuarioRepository.save(usuario);
-
-        return "Usuario registrado correctamente";
+        return authMapper.toDTO(auth);
     }
 
+    public LocalDateTime obtenerFechaCreacion(Long id){
+        Auth auth = authRepository.findById(id).orElse(null);
 
-    public AuthResponse login(LoginRequest request) {
-
-        Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        if (!passwordEncoder.matches(request.getPassword(), usuario.getPassword())) {
-            throw new RuntimeException("Contraseña incorrecta");
+        if(auth == null){
+            throw new UsuarioNoExiste("Usuario no encontrado");
         }
 
-        String token = jwtService.generateToken(usuario.getCorreo());
-
-        return new AuthResponse(token, "Bearer", usuario.getCorreo());
+        return auth.getFechaCreacion();
     }
 
-    public boolean existeUsuarioActivo(String correo) {
-        return usuarioRepository.existsByCorreoAndActivoTrue(correo);
+    public AuthDto findByCorreo(String correo){
+        Auth auth = authRepository.findByCorreo(correo);
+
+        if(auth == null){
+            throw new ContrasenaCorreoIncorrecto("No existe un usuario con ese correo");
+        }
+
+        return authMapper.toDTO(auth);
     }
 
-    public UsuarioResponse buscarUsuarioPorCorreo(String correo) {
-
-        Usuario usuario = usuarioRepository.findByCorreo(correo)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        return UsuarioResponse.builder()
-                .id(usuario.getId())
-                .correo(usuario.getCorreo())
-                .activo(usuario.getActivo())
-                .roles(usuario.getRoles()
-                        .stream()
-                        .map(rol -> rol.getNombre())
-                        .collect(Collectors.toSet()))
-                .build();
-    }
 }

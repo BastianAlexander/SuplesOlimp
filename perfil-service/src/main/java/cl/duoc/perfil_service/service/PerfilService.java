@@ -1,88 +1,121 @@
-    package cl.duoc.perfil_service.service;
+package cl.duoc.perfil_service.service;
 
-    import cl.duoc.perfil_service.dto.ActualizarPerfilRequest;
-    import cl.duoc.perfil_service.dto.CrearPerfilRequest;
-    import cl.duoc.perfil_service.model.Perfil;
-    import cl.duoc.perfil_service.repository.PerfilRepository;
-    import lombok.RequiredArgsConstructor;
-    import org.springframework.stereotype.Service;
+import cl.duoc.perfil_service.clients.AuthFeign;
+import cl.duoc.perfil_service.dto.ActualizarPerfilDTO;
+import cl.duoc.perfil_service.dto.AuthDTO;
+import cl.duoc.perfil_service.dto.PerfilDTO;
+import cl.duoc.perfil_service.exception.UsuarioPerfilNoExiste;
+import cl.duoc.perfil_service.mapper.PerfilMapper;
+import cl.duoc.perfil_service.model.Perfil;
+import cl.duoc.perfil_service.repository.PerfilRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
-    import java.util.List;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
-    @Service
-    @RequiredArgsConstructor
-    public class PerfilService {
+@Service
+public class PerfilService {
 
-        private final PerfilRepository perfilRepository;
+    @Autowired
+    private PerfilRepository perfilRepository;
+    @Autowired
+    private PerfilMapper perfilMapper;
 
-        public Perfil crear(CrearPerfilRequest request) {
+    @Autowired
+    private AuthFeign authFeign;
 
-            if (perfilRepository.existsByUsuarioAuthId(request.getUsuarioAuthId())) {
-                throw new RuntimeException("Este usuario ya tiene un perfil creado");
-            }
+    public PerfilDTO findById(Long id){
 
-            Perfil perfil = Perfil.builder()
-                    .usuarioAuthId(request.getUsuarioAuthId())
-                    .nombre(request.getNombre())
-                    .apellido(request.getApellido())
-                    .telefono(request.getTelefono())
-                    .direccion(request.getDireccion())
-                    .activo(true)
-                    .build();
+        Perfil perfil = perfilRepository.findById(id)
+                .orElseThrow(() -> new UsuarioPerfilNoExiste("El perfil o Usuario con ID " + id + " no existe"));
+        PerfilDTO dto = perfilMapper.toDTO(perfil);
+        AuthDTO auth = authFeign.buscarAuthPorId(perfil.getAuth());
+        dto.setAuth(auth);
 
-            return perfilRepository.save(perfil);
-        }
-
-        public List<Perfil> listar() {
-            return perfilRepository.findByActivoTrue();
-        }
-
-        public Perfil buscarPorId(Long id) {
-            return perfilRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Perfil no encontrado"));
-        }
-
-        public Perfil buscarPorUsuarioAuthId(Long usuarioAuthId) {
-            return perfilRepository.findByUsuarioAuthId(usuarioAuthId)
-                    .orElseThrow(() -> new RuntimeException("Perfil no encontrado para este usuario"));
-        }
-
-        public Perfil actualizar(Long id, ActualizarPerfilRequest request) {
-
-            Perfil perfil = buscarPorId(id);
-
-            perfil.setNombre(request.getNombre());
-            perfil.setApellido(request.getApellido());
-            perfil.setTelefono(request.getTelefono());
-            perfil.setDireccion(request.getDireccion());
-
-            return perfilRepository.save(perfil);
-        }
-
-        public void eliminar(Long id) {
-
-            Perfil perfil = buscarPorId(id);
-
-            perfil.setActivo(false);
-
-            perfilRepository.save(perfil);
-        }
-
-        public Perfil actualizarDireccion(Long id, String direccion) {
-
-            Perfil perfil = buscarPorId(id);
-
-            perfil.setDireccion(direccion);
-
-            return perfilRepository.save(perfil);
-        }
-
-        public Perfil actualizarTelefono(Long id, String telefono) {
-
-            Perfil perfil = buscarPorId(id);
-
-            perfil.setTelefono(telefono);
-
-            return perfilRepository.save(perfil);
-        }
+        return dto;
     }
+    public Perfil save(Perfil perfil){
+        return perfilRepository.save(perfil);
+    }
+
+    public Perfil update(Long id, ActualizarPerfilDTO actualizarPerfilDTO){
+        Perfil perfilActualizar = perfilRepository.findById(id).orElseThrow(() -> new UsuarioPerfilNoExiste("El perfil o Usuario con ID " + id + " no existe"));
+
+        perfilActualizar.setNombre(actualizarPerfilDTO.getNombre());
+        perfilActualizar.setApellido(actualizarPerfilDTO.getApellido());
+        perfilActualizar.setTelefono(actualizarPerfilDTO.getTelefono());
+        perfilActualizar.setDireccion(actualizarPerfilDTO.getDireccion());
+        perfilActualizar.setUltimaModificacion(LocalDateTime.now());
+        return perfilRepository.save(perfilActualizar);
+    }
+    public void delete(Long id){
+        perfilRepository.deleteById(id);
+    }
+
+    public List<PerfilDTO> listado(){
+
+        List<Perfil> listado = perfilRepository.findAll();
+        List<PerfilDTO> listadoDTO = new ArrayList<>();
+
+        for (Perfil perfil : listado) {
+
+            PerfilDTO dto = perfilMapper.toDTO(perfil);
+            AuthDTO auth = authFeign.buscarAuthPorId(perfil.getAuth());
+            dto.setAuth(auth);
+            listadoDTO.add(dto);
+        }
+
+        return listadoDTO;
+    }
+
+    public PerfilDTO buscarPorAuthId(Long authId) {
+        Perfil perfil = perfilRepository.findByAuth(authId);
+        if (perfil == null) {
+            throw new UsuarioPerfilNoExiste(
+                    "No existe perfil asociado al auth ID " + authId
+            );
+        }
+
+        PerfilDTO dto = perfilMapper.toDTO(perfil);
+        AuthDTO auth = authFeign.buscarAuthPorId(perfil.getAuth());
+        dto.setAuth(auth);
+        return dto;
+    }
+
+    public LocalDateTime obtenerUltimaModificacion(Long id){
+
+        Perfil perfil = perfilRepository.findById(id).orElseThrow(() -> new UsuarioPerfilNoExiste("El perfil o Usuario con ID " + id + " no existe"));
+
+
+        return perfil.getUltimaModificacion();
+    }
+
+    public PerfilDTO buscarPorCorreo(String correo){
+
+        AuthDTO auth = authFeign.buscarPorCorreo(correo);
+
+        if(auth == null){
+            throw new UsuarioPerfilNoExiste(
+                    "No existe usuario auth con correo " + correo
+            );
+        }
+
+        Perfil perfil = perfilRepository.findByAuth(auth.getId());
+
+        if (perfil == null) {
+            throw new UsuarioPerfilNoExiste(
+                    "No existe perfil asociado al correo " + correo
+            );
+        }
+
+        PerfilDTO dto = perfilMapper.toDTO(perfil);
+
+        dto.setAuth(auth);
+
+        return dto;
+    }
+
+
+}

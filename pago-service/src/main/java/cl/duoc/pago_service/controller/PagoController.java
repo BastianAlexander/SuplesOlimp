@@ -1,49 +1,60 @@
 package cl.duoc.pago_service.controller;
 
-import cl.duoc.pago_service.dto.CrearPagoRequest;
-import cl.duoc.pago_service.model.Pago;
+import cl.duoc.pago_service.dto.Pagar;
+import cl.duoc.pago_service.dto.Pagar;
+import cl.duoc.pago_service.dto.PagoDTO;
 import cl.duoc.pago_service.service.PagoService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/pagos")
-@RequiredArgsConstructor
+@RequestMapping("api/v1/pagos")
 public class PagoController {
 
-    private final PagoService pagoService;
-
-    @PostMapping
-    public ResponseEntity<Pago> crear(@Valid @RequestBody CrearPagoRequest request) {
-        return ResponseEntity.ok(pagoService.crear(request));
-    }
+    @Autowired
+    private PagoService pagoService;
 
     @GetMapping
-    public ResponseEntity<List<Pago>> listar() {
-        return ResponseEntity.ok(pagoService.listar());
+    public ResponseEntity<?> listar() {
+        return ResponseEntity.ok(pagoService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Pago> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(pagoService.buscarPorId(id));
+    public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
+        PagoDTO pago = pagoService.findById(id);
+        return ResponseEntity.ok(pago);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> borrar(@PathVariable Long id) {
+        pagoService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/pagar-orden/{ordenId}")
+    public ResponseEntity<?> pagarOrden(@PathVariable Long ordenId, @Valid @RequestBody Pagar request) {
+        PagoDTO pago = pagoService.pagarOrden(ordenId, request);
+        return new ResponseEntity<>(pago, HttpStatus.CREATED);
+    }
+
+
+
+    //Endpoinst Extrassss
     @GetMapping("/orden/{ordenId}")
-    public ResponseEntity<Pago> buscarPorOrdenId(@PathVariable Long ordenId) {
-        return ResponseEntity.ok(pagoService.buscarPorOrdenId(ordenId));
+    public ResponseEntity<?> buscarPorOrden(@PathVariable Long ordenId) {
+        return ResponseEntity.ok(pagoService.buscarPorOrden(ordenId));
     }
 
     @GetMapping("/estado/{estado}")
-    public ResponseEntity<List<Pago>> listarPorEstado(@PathVariable String estado) {
-        return ResponseEntity.ok(pagoService.listarPorEstado(estado));
+    public ResponseEntity<?> buscarPorEstado(@PathVariable String estado) {
+        return ResponseEntity.ok(pagoService.buscarPorEstado(estado));
     }
 
-    @GetMapping("/metodo/{metodo}")
-    public ResponseEntity<List<Pago>> listarPorMetodo(@PathVariable String metodo) {
-        return ResponseEntity.ok(pagoService.listarPorMetodo(metodo));
+    @GetMapping("/metodo/{metodoPago}")
+    public ResponseEntity<?> buscarPorMetodoPago(@PathVariable String metodoPago) {
+        return ResponseEntity.ok(pagoService.buscarPorMetodoPago(metodoPago));
     }
 }

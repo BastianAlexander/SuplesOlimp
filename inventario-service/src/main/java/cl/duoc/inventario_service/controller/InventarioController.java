@@ -1,68 +1,65 @@
 package cl.duoc.inventario_service.controller;
 
-import cl.duoc.inventario_service.dto.ActualizarStockRequest;
-import cl.duoc.inventario_service.dto.CrearInventarioRequest;
-import cl.duoc.inventario_service.dto.DescontarStockRequest;
+import cl.duoc.inventario_service.dto.InventarioDTO;
 import cl.duoc.inventario_service.model.Inventario;
 import cl.duoc.inventario_service.service.InventarioService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/inventario")
-@RequiredArgsConstructor
+@RequestMapping("api/v1/inventario")
 public class InventarioController {
 
-    private final InventarioService inventarioService;
-
-    @PostMapping
-    public ResponseEntity<Inventario> crear(@Valid @RequestBody CrearInventarioRequest request) {
-        return ResponseEntity.ok(inventarioService.crear(request));
-    }
+    @Autowired
+    private InventarioService inventarioService;
 
     @GetMapping
-    public ResponseEntity<List<Inventario>> listar() {
-        return ResponseEntity.ok(inventarioService.listar());
+    public ResponseEntity<?> listarInventarios() {
+        return ResponseEntity.ok(inventarioService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Inventario> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(inventarioService.buscarPorId(id));
+    public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
+        InventarioDTO inventarioDTO = inventarioService.findById(id);
+        if (inventarioDTO == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(inventarioDTO);
     }
 
-    @GetMapping("/producto/{productoId}")
-    public ResponseEntity<Inventario> buscarPorProductoId(@PathVariable Long productoId) {
-        return ResponseEntity.ok(inventarioService.buscarPorProductoId(productoId));
+    @PostMapping
+    public ResponseEntity<?> registrar(@Valid @RequestBody Inventario inventario) {
+        InventarioDTO inventarioNuevo = inventarioService.save(inventario);
+        return new ResponseEntity<>(inventarioNuevo, HttpStatus.CREATED);
     }
 
-    @PutMapping("/producto/{productoId}")
-    public ResponseEntity<Inventario> actualizarStock(
-            @PathVariable Long productoId,
-            @Valid @RequestBody ActualizarStockRequest request
-    ) {
-        return ResponseEntity.ok(inventarioService.actualizarStock(productoId, request));
-    }
-
-    @PutMapping("/producto/{productoId}/descontar")
-    public ResponseEntity<Inventario> descontarStock(
-            @PathVariable Long productoId,
-            @Valid @RequestBody DescontarStockRequest request
-    ) {
-        return ResponseEntity.ok(inventarioService.descontarStock(productoId, request));
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizar(@PathVariable Long id, @Valid @RequestBody Inventario inventario) {
+        InventarioDTO inventarioActualizado = inventarioService.update(id, inventario);
+        if (inventarioActualizado == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(inventarioActualizado);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> eliminar(@PathVariable Long id) {
-        inventarioService.eliminar(id);
-        return ResponseEntity.ok("Inventario eliminado correctamente");
+    public ResponseEntity<?> borrar(@PathVariable Long id) {
+        inventarioService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/bajo-stock")
-    public ResponseEntity<List<Inventario>> listarBajoStock(@RequestParam Integer minimo) {
-        return ResponseEntity.ok(inventarioService.listarBajoStock(minimo));
+    //Endpoints extras aparte del crud
+    @GetMapping("/producto/{productoId}")
+    public ResponseEntity<?> buscarPorProductoId(@PathVariable Long productoId) {
+        return ResponseEntity.ok(inventarioService.buscarPorProductoId(productoId));
+    }
+
+    @PutMapping("/{id}/aumentar/{cantidad}")
+    public ResponseEntity<?> aumentarStock(@PathVariable Long id, @PathVariable Integer cantidad) {
+        return ResponseEntity.ok(inventarioService.aumentarStock(id, cantidad));
+    }
+
+    @PutMapping("/{id}/disminuir/{cantidad}")
+    public ResponseEntity<?> disminuirStock(@PathVariable Long id, @PathVariable Integer cantidad) {
+        return ResponseEntity.ok(inventarioService.disminuirStock(id, cantidad));
     }
 }

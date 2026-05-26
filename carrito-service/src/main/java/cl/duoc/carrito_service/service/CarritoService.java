@@ -1,109 +1,107 @@
 package cl.duoc.carrito_service.service;
 
-import cl.duoc.carrito_service.client.InventarioClient;
-import cl.duoc.carrito_service.client.PerfilClient;
-import cl.duoc.carrito_service.client.ProductoClient;
-import cl.duoc.carrito_service.dto.ActualizarCantidadRequest;
-import cl.duoc.carrito_service.dto.AgregarCarritoRequest;
-import cl.duoc.carrito_service.model.CarritoItem;
-import cl.duoc.carrito_service.repository.CarritoItemRepository;
-import lombok.RequiredArgsConstructor;
+import cl.duoc.carrito_service.clients.ClienteFeign;
+import cl.duoc.carrito_service.dto.CarritoDTO;
+import cl.duoc.carrito_service.dto.CarritoItemDTO;
+import cl.duoc.carrito_service.dto.ClienteDTO;
+import cl.duoc.carrito_service.exception.CarritoNoExiste;
+import cl.duoc.carrito_service.mapper.CarritoMapper;
+import cl.duoc.carrito_service.model.Carrito;
+import cl.duoc.carrito_service.repository.CarritoRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class CarritoService {
 
-    private final CarritoItemRepository carritoItemRepository;
-    private final PerfilClient perfilClient;
-    private final ProductoClient productoClient;
-    private final InventarioClient inventarioClient;
+    @Autowired
+    private CarritoRepository carritoRepository;
 
-    public CarritoItem agregar(AgregarCarritoRequest request) {
+    @Autowired
+    private CarritoMapper carritoMapper;
 
-        perfilClient.buscarPerfilPorId(request.getPerfilId());
-        productoClient.buscarProductoPorId(request.getProductoId());
+    @Autowired
+    private ClienteFeign clienteFeign;
 
-        Map<String, Object> inventario = inventarioClient.buscarInventarioPorProductoId(request.getProductoId());
-        Integer stock = (Integer) inventario.get("stock");
+    @Autowired
+    private CarritoItemService carritoItemService;
 
-        if (stock < request.getCantidad()) {
-            throw new RuntimeException("Stock insuficiente para agregar al carrito");
+    public List<CarritoDTO> findAll() {
+        List<Carrito> carritos = carritoRepository.findAll();
+
+        return carritos.stream()
+                .map(carrito -> {
+                    ClienteDTO clienteDTO = clienteFeign.buscarClientePorId(carrito.getClienteId());
+                    List<CarritoItemDTO> items = carritoItemService.buscarItemsPorCarrito(carrito.getId());
+                    return carritoMapper.toDTO(carrito, clienteDTO, items);
+                })
+                .collect(Collectors.toList());
+    }
+
+    public CarritoDTO findById(Long id) {
+        Carrito carrito = carritoRepository.findById(id).orElse(null);
+
+        if (carrito == null) {
+            throw new CarritoNoExiste("No existe carrito con ID: " + id);
         }
 
-        var itemExistente = carritoItemRepository
-                .findByPerfilIdAndProductoIdAndActivoTrue(request.getPerfilId(), request.getProductoId());
+        ClienteDTO clienteDTO = clienteFeign.buscarClientePorId(carrito.getClienteId());
+        List<CarritoItemDTO> items = carritoItemService.buscarItemsPorCarrito(carrito.getId());
 
-        if (itemExistente.isPresent()) {
-            CarritoItem item = itemExistente.get();
-            int nuevaCantidad = item.getCantidad() + request.getCantidad();
+        return carritoMapper.toDTO(carrito, clienteDTO, items);
+    }
 
-            if (stock < nuevaCantidad) {
-                throw new RuntimeException("Stock insuficiente para esta cantidad total");
-            }
+    public CarritoDTO save(Carrito carrito) {
+        ClienteDTO clienteDTO = clienteFeign.buscarClientePorId(carrito.getClienteId());
 
-            item.setCantidad(nuevaCantidad);
-            return carritoItemRepository.save(item);
+        Carrito carritoGuardado = carritoRepository.save(carrito);
+
+        List<CarritoItemDTO> items = carritoItemService.buscarItemsPorCarrito(carritoGuardado.getId());
+
+        return carritoMapper.toDTO(carritoGuardado, clienteDTO, items);
+    }
+
+    public CarritoDTO update(Long id, Carrito carrito) {
+        Carrito carritoActualizar = carritoRepository.findById(id).orElse(null);
+
+        if (carritoActualizar == null) {
+            throw new CarritoNoExiste("No existe carrito con ID: " + id);
         }
 
-        CarritoItem item = CarritoItem.builder()
-                .perfilId(request.getPerfilId())
-                .productoId(request.getProductoId())
-                .cantidad(request.getCantidad())
-                .activo(true)
-                .build();
+        ClienteDTO clienteDTO = clienteFeign.buscarClientePorId(carrito.getClienteId());
 
-        return carritoItemRepository.save(item);
+        carritoActualizar.setClienteId(carrito.getClienteId());
+
+        Carrito carritoActualizado = carritoRepository.save(carritoActualizar);
+
+        List<CarritoItemDTO> items = carritoItemService.buscarItemsPorCarrito(carritoActualizado.getId());
+
+        return carritoMapper.toDTO(carritoActualizado, clienteDTO, items);
     }
 
-    public List<CarritoItem> listarPorPerfil(Long perfilId) {
-        perfilClient.buscarPerfilPorId(perfilId);
-        return carritoItemRepository.findByPerfilIdAndActivoTrue(perfilId);
-    }
+    public void delete(Long id) {
+        Carrito carrito = carritoRepository.findById(id).orElse(null);
 
-    public CarritoItem actualizarCantidad(Long id, ActualizarCantidadRequest request) {
-
-        CarritoItem item = carritoItemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Item del carrito no encontrado"));
-
-        Map<String, Object> inventario = inventarioClient.buscarInventarioPorProductoId(item.getProductoId());
-        Integer stock = (Integer) inventario.get("stock");
-
-        if (stock < request.getCantidad()) {
-            throw new RuntimeException("Stock insuficiente para actualizar cantidad");
+        if (carrito == null) {
+            throw new CarritoNoExiste("No existe carrito con ID: " + id);
         }
 
-        item.setCantidad(request.getCantidad());
-
-        return carritoItemRepository.save(item);
+        carritoRepository.deleteById(id);
     }
 
-    public void eliminar(Long id) {
+    //Metodo extras aparte del crud
+    public List<CarritoDTO> buscarPorCliente(Long clienteId) {
+        List<Carrito> carritos = carritoRepository.findByClienteId(clienteId);
 
-        CarritoItem item = carritoItemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Item del carrito no encontrado"));
-
-        item.setActivo(false);
-
-        carritoItemRepository.save(item);
-    }
-
-    public void vaciarCarrito(Long perfilId) {
-
-        List<CarritoItem> items = carritoItemRepository.findByPerfilIdAndActivoTrue(perfilId);
-
-        for (CarritoItem item : items) {
-            item.setActivo(false);
-        }
-
-        carritoItemRepository.saveAll(items);
-    }
-
-    public int contarItemsPorPerfil(Long perfilId) {
-        perfilClient.buscarPerfilPorId(perfilId);
-        return carritoItemRepository.countByPerfilIdAndActivoTrue(perfilId);
+        return carritos.stream()
+                .map(carrito -> {
+                    ClienteDTO clienteDTO = clienteFeign.buscarClientePorId(carrito.getClienteId());
+                    List<CarritoItemDTO> items = carritoItemService.buscarItemsPorCarrito(carrito.getId());
+                    return carritoMapper.toDTO(carrito, clienteDTO, items);
+                })
+                .collect(Collectors.toList());
     }
 }

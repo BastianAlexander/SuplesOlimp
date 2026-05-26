@@ -1,70 +1,88 @@
 package cl.duoc.perfil_service.controller;
 
-import cl.duoc.perfil_service.dto.ActualizarPerfilRequest;
-import cl.duoc.perfil_service.dto.CrearPerfilRequest;
+import cl.duoc.perfil_service.dto.ActualizarPerfilDTO;
+import cl.duoc.perfil_service.dto.PerfilDTO;
 import cl.duoc.perfil_service.model.Perfil;
 import cl.duoc.perfil_service.service.PerfilService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping("/perfiles")
-@RequiredArgsConstructor
+@RequestMapping("api/v1/perfiles")
 public class PerfilController {
+    @Autowired
+    private PerfilService perfilService;
 
-    private final PerfilService perfilService;
-
-    @PostMapping
-    public ResponseEntity<Perfil> crear(@Valid @RequestBody CrearPerfilRequest request) {
-        return ResponseEntity.ok(perfilService.crear(request));
-    }
-
-    @GetMapping
-    public ResponseEntity<List<Perfil>> listar() {
-        return ResponseEntity.ok(perfilService.listar());
+    @GetMapping()
+    public ResponseEntity<?> listaPerfiles(){
+        return ResponseEntity.ok(perfilService.listado());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Perfil> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(perfilService.buscarPorId(id));
+    public ResponseEntity<?> buscarPorId(@PathVariable Long id){
+        PerfilDTO perfilDTO  = perfilService.findById(id);
+        if (perfilDTO == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(perfilDTO);
     }
 
-    @GetMapping("/usuario/{usuarioAuthId}")
-    public ResponseEntity<Perfil> buscarPorUsuarioAuthId(@PathVariable Long usuarioAuthId) {
-        return ResponseEntity.ok(perfilService.buscarPorUsuarioAuthId(usuarioAuthId));
+    @PostMapping
+    public ResponseEntity<?> registrar(@Valid @RequestBody Perfil perfil){
+        Perfil perfilNuevo = perfilService.save(perfil);
+        return new ResponseEntity<>(perfilNuevo, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Perfil> actualizar(
-            @PathVariable Long id,
-            @Valid @RequestBody ActualizarPerfilRequest request
-    ) {
-        return ResponseEntity.ok(perfilService.actualizar(id, request));
+    public ResponseEntity<?> actualizar(@PathVariable Long id, @Valid @RequestBody ActualizarPerfilDTO perfil){
+        Perfil perfilActualizado  = perfilService.update(id,perfil );
+        if (perfilActualizado == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(perfilActualizado);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> eliminar(@PathVariable Long id) {
-        perfilService.eliminar(id);
-        return ResponseEntity.ok("Perfil eliminado correctamente");
+    public ResponseEntity<?> borrar(@PathVariable Long id){
+        perfilService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/{id}/direccion")
-    public ResponseEntity<Perfil> actualizarDireccion(
-            @PathVariable Long id,
-            @RequestParam String direccion
-    ) {
-        return ResponseEntity.ok(perfilService.actualizarDireccion(id, direccion));
+    //Endpoints extrassss
+
+
+    @GetMapping("/auth/{authId}")
+    public ResponseEntity<PerfilDTO> buscarPorAuthId(@PathVariable Long authId) {
+        PerfilDTO perfil = perfilService.buscarPorAuthId(authId);
+
+        if (perfil == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(perfil);
     }
 
-    @PutMapping("/{id}/telefono")
-    public ResponseEntity<Perfil> actualizarTelefono(
-            @PathVariable Long id,
-            @RequestParam String telefono
-    ) {
-        return ResponseEntity.ok(perfilService.actualizarTelefono(id, telefono));
+    @GetMapping("/ultima-modificacion/{id}")
+    public ResponseEntity<LocalDateTime> obtenerUltimaModificacion(
+            @PathVariable Long id){
+        LocalDateTime fecha = perfilService.obtenerUltimaModificacion(id);
+        if(fecha == null){
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(fecha);
     }
+
+    @GetMapping("/correo/{correo}")
+    public ResponseEntity<PerfilDTO> buscarPorCorreo(
+            @PathVariable String correo){
+
+        PerfilDTO perfil = perfilService.buscarPorCorreo(correo);
+
+        if(perfil == null){
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(perfil);
+    }
+
+
 }

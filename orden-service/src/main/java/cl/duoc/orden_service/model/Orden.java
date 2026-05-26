@@ -1,39 +1,39 @@
 package cl.duoc.orden_service.model;
 
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
-import lombok.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
-@Entity
-@Table(name = "ordenes")
-@Getter
-@Setter
-@NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@NoArgsConstructor
+@Data
+@Entity
+@Table(name = "orden")
 public class Orden {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "perfil_id", nullable = false)
-    private Long perfilId;
+    @Column(name = "cliente_id")
+    @NotNull(message = "El cliente id no puede estar vacío")
+    private Long clienteId;
 
-    @Column(nullable = false)
-    private BigDecimal total;
+    @Column(name = "carrito_id")
+    @NotNull(message = "El carrito id no puede estar vacío")
+    private Long carritoId;
 
-    @Column(nullable = false)
+    @NotNull(message = "El total no puede estar vacío")
+    private Integer total;
+
+    @NotBlank(message = "El estado no puede estar vacío")
     private String estado;
 
-    @Column(nullable = false)
-    private LocalDateTime fecha;
-
-    @JsonManagedReference
-    @OneToMany(mappedBy = "orden", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrdenItem> items;
+    @Column(name = "fecha_creacion")
+    private LocalDateTime fechaCreacion;
 }

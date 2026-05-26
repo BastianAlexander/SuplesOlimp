@@ -1,32 +1,39 @@
 package cl.duoc.pago_service.model;
 
 import jakarta.persistence.*;
-import lombok.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "pagos")
-@Getter
-@Setter
-@NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@NoArgsConstructor
+@Data
+@Entity
+@Table(name = "pago")
 public class Pago {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "orden_id", nullable = false, unique = true)
+    @Column(name = "orden_id")
+    @NotNull(message = "La orden id no puede estar vacía")
     private Long ordenId;
 
-    @Column(nullable = false)
-    private BigDecimal monto;
+    @NotNull(message = "El monto no puede estar vacío")
+    private Integer monto;
 
-    @Column(nullable = false)
-    private String metodo;
+    @Column(name = "metodo_pago")
+    @NotBlank(message = "El método de pago no puede estar vacío")
+    private String metodoPago;
 
-    @Column(nullable = false)
+    @NotBlank(message = "El estado no puede estar vacío")
     private String estado;
+
+    @Column(name = "fecha_pago")
+    private LocalDateTime fechaPago;
 }

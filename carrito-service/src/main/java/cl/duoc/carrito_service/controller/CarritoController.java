@@ -1,55 +1,54 @@
 package cl.duoc.carrito_service.controller;
 
-import cl.duoc.carrito_service.dto.ActualizarCantidadRequest;
-import cl.duoc.carrito_service.dto.AgregarCarritoRequest;
-import cl.duoc.carrito_service.model.CarritoItem;
+import cl.duoc.carrito_service.dto.CarritoDTO;
+import cl.duoc.carrito_service.model.Carrito;
 import cl.duoc.carrito_service.service.CarritoService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/carrito")
-@RequiredArgsConstructor
+@RequestMapping("api/v1/carritos")
 public class CarritoController {
 
-    private final CarritoService carritoService;
+    @Autowired
+    private CarritoService carritoService;
 
-    @PostMapping
-    public ResponseEntity<CarritoItem> agregar(@Valid @RequestBody AgregarCarritoRequest request) {
-        return ResponseEntity.ok(carritoService.agregar(request));
+    @GetMapping
+    public ResponseEntity<?> listar() {
+        return ResponseEntity.ok(carritoService.findAll());
     }
 
-    @GetMapping("/perfil/{perfilId}")
-    public ResponseEntity<List<CarritoItem>> listarPorPerfil(@PathVariable Long perfilId) {
-        return ResponseEntity.ok(carritoService.listarPorPerfil(perfilId));
+    @GetMapping("/{id}")
+    public ResponseEntity<?> buscarPorId(@PathVariable Long id) {
+        CarritoDTO carrito = carritoService.findById(id);
+        return ResponseEntity.ok(carrito);
+    }
+
+    @PostMapping
+    public ResponseEntity<?> registrar(@Valid @RequestBody Carrito carrito) {
+        CarritoDTO carritoNuevo = carritoService.save(carrito);
+        return new ResponseEntity<>(carritoNuevo, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CarritoItem> actualizarCantidad(
-            @PathVariable Long id,
-            @Valid @RequestBody ActualizarCantidadRequest request
-    ) {
-        return ResponseEntity.ok(carritoService.actualizarCantidad(id, request));
+    public ResponseEntity<?> actualizar(@PathVariable Long id, @Valid @RequestBody Carrito carrito) {
+        CarritoDTO carritoActualizado = carritoService.update(id, carrito);
+        return ResponseEntity.ok(carritoActualizado);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> eliminar(@PathVariable Long id) {
-        carritoService.eliminar(id);
-        return ResponseEntity.ok("Producto eliminado del carrito correctamente");
+    public ResponseEntity<?> borrar(@PathVariable Long id) {
+        carritoService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/perfil/{perfilId}")
-    public ResponseEntity<String> vaciarCarrito(@PathVariable Long perfilId) {
-        carritoService.vaciarCarrito(perfilId);
-        return ResponseEntity.ok("Carrito vaciado correctamente");
-    }
 
-    @GetMapping("/perfil/{perfilId}/cantidad-items")
-    public ResponseEntity<Integer> contarItemsPorPerfil(@PathVariable Long perfilId) {
-        return ResponseEntity.ok(carritoService.contarItemsPorPerfil(perfilId));
+    //Endpoints extras aparte del crud
+    @GetMapping("/cliente/{clienteId}")
+    public ResponseEntity<?> buscarPorCliente(@PathVariable Long clienteId) {
+        return ResponseEntity.ok(carritoService.buscarPorCliente(clienteId));
     }
 }
